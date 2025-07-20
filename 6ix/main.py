@@ -17,6 +17,7 @@ import signal
 import subprocess
 import threading
 import time
+import convertapi
 from datetime import datetime
 from typing import List, Tuple
 
@@ -24,6 +25,13 @@ import requests  # Needs to be available in your QNX Python build
 from dotenv import load_dotenv
 
 import rainbowhat  # QNX-adapted Rainbow HAT driver
+
+try:
+    import gpio_rpi.gpio as GPIO
+
+    GPIO.cleanup()
+except Exception as e:
+    print("[WARN] Couldn't clean up GPIO:", e)
 
 load_dotenv()  # Loads from .env by default
 
@@ -36,7 +44,7 @@ convert_key = os.environ["CONVERT_API_KEY"]
 VIEWFINDER_CMD = "camera_example3_viewfinder"
 SCREENSHOT_CMD = "screenshot"  # Should output screenshot.bmp in CWD
 SCREENSHOT_FILE = "screenshot.bmp"
-GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"  # adjust if needed
+GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"  # adjust if needed
 GEMINI_API_KEY_ENV = gemini_key
 
 # Mapping from note names (C4, D#4, etc.) to frequencies (Hz)
@@ -181,52 +189,34 @@ def play_chord(chord_str: str) -> None:
         if freq:
             rainbowhat.buzzer.note(freq, BUZZER_NOTE_MS / 1000.0)
             time.sleep(0.05)  # tiny gap
-    rainbowhat.buzzer.note(0, 0)
+    # rainbowhat.buzzer.note(0, 0)
 
 
-def convert_bmp_to_jpg_online(bmp_path, jpg_path):
-    convertapi_key = os.environ["CONVERT_API_KEY"]
-    url = f"https://v2.convertapi.com/convert/bmp/to/jpg?Secret={convertapi_key}"
-
-    with open(bmp_path, "rb") as f:
-        files = {"File": f}
-        r = requests.post(url, files=files)
-
-    try:
-        r.raise_for_status()
-        resp_json = r.json()
-        if "Files" not in resp_json or not resp_json["Files"]:
-            raise ValueError(f"Unexpected ConvertAPI response: {resp_json}")
-        jpg_url = resp_json["Files"][0]["Url"]
-    except Exception as e:
-        print(f"[ERROR] ConvertAPI failed: {e}")
-        print(f"[DEBUG] Response content: {r.text}")
-        raise  # Re-raise for the thread to handle if needed
-
-    # Download the JPG
-    jpg_data = requests.get(jpg_url)
-    with open(jpg_path, "wb") as out_file:
-        out_file.write(jpg_data.content)
+def convert_bmp_to_jpg_online(bmp_path: str, jpg_path: str, secret: str) -> str:
+    # convert_url = f"https://v2.convertapi.com/convert/bmp/to/jpg?Secret={secret}"
+    convertapi.api_credentials = convert_key
+    convertapi.convert("jpg", {"File": "screenshot.bmp"}, from_format="bmp").save_files(
+        "screenshot.jpg"
+    )
 
     print("[INFO] JPG saved to", jpg_path)
+    return jpg_path
 
 
 def send_jpg_to_gemini_with_prompt(jpg_path, temperature, altitude, pressure, touches):
     """Sends a JPEG + structured prompt to Gemini and returns MBTI + chord."""
 
     gemini_api_key = os.environ["GEMINI_API_KEY"]
-    gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-vision:generateContent?key={gemini_api_key}"
+    gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={gemini_api_key}"
 
     # Base64 encode the JPEG
     with open(jpg_path, "rb") as f:
         image_b64 = base64.b64encode(f.read()).decode("utf-8")
 
     # Build the structured prompt
-    touch_str = "\n".join(
-        [f"- Time: {t['time']} ms, Pressure: {t['pressure']} Pa" for t in touches]
-    )
+    touch_str = "\n".join([f"- Time: {t[0]} ms, Pressure: {t[1]} Pa" for t in touches])
     prompt_text = f"""
-        Given temperature, altitude, pressure, list of touches (chosen number of touches, timing & pressure), and an embedded image of the user, answer the following in the exact format 'MBTI, note1 note2 note3 note4'.
+        Given temperature, altitude, pressure, list of touches (chosen number of touches, timing & pressure), and an embedded image of the user, answer the following in the exact format 'MBTI, note1 note2 note3 note4' where MBTI is exactly 4 characters of the predicted personality and note1 note2 note3 note4 makes up a chord that user will likely enjoy from the information we learn about how user interacted with the environment. This means, the output will be of a format "one string of 4 characters, 4 notes". Do NOT include any other extra information that might break the format. Extra information is of below and user's pose, style, expression can be learnt from the embedded image.
 
         Temperature: {temperature}°C
         Altitude: {altitude} m
@@ -247,7 +237,9 @@ def send_jpg_to_gemini_with_prompt(jpg_path, temperature, altitude, pressure, to
         ]
     }
 
-    headers = {"Content-Type": "application/json"}
+    headers = {
+        "Content-Type": "application/json",
+    }
     response = requests.post(gemini_url, headers=headers, json=payload)
     response.raise_for_status()
 
@@ -257,9 +249,8 @@ def send_jpg_to_gemini_with_prompt(jpg_path, temperature, altitude, pressure, to
 def screenshot_bmp_to_gemini_response(
     bmp_path, temperature, altitude, pressure, touches
 ):
-    """BMP → JPG → Gemini prompt + image → reply"""
     jpg_path = "screenshot.jpg"
-    convert_bmp_to_jpg_online(bmp_path, jpg_path)
+    convert_bmp_to_jpg_online(bmp_path, jpg_path, convert_key)
     return send_jpg_to_gemini_with_prompt(
         jpg_path, temperature, altitude, pressure, touches
     )
@@ -279,6 +270,7 @@ def send_to_gemini() -> None:
         )
         stop_led_loading()
 
+        print(f"result = {result}")
         try:
             mbti, chord = result.split(",")
             mbti = mbti.strip().upper()[:4]
