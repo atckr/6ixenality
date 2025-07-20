@@ -344,7 +344,6 @@ def send_to_gemini() -> None:
 def on_a_press(_):
     rainbowhat.display.clear()
     stop_led_loading()
-    rainbowhat.display.print_str("6666")
     rainbowhat.lights.rgb(1, 0, 0)
     start_viewfinder()
     start_screenshot()
@@ -406,6 +405,9 @@ def main():
     signal.signal(signal.SIGINT, lambda *_: cleanup() or exit(0))
     signal.signal(signal.SIGTERM, lambda *_: cleanup() or exit(0))
     print("[INFO] System ready – press buttons on Rainbow HAT.")
+    rainbowhat.display.clear()
+    rainbowhat.display.print_str("6666")
+    rainbowhat.display.show()
     signal.pause()
 
 
