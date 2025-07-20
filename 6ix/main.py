@@ -88,8 +88,7 @@ loading_stop = threading.Event()  # signals the LED loading animation to stop
 # ──────────────────────────────────────────────────────────────────────────────
 
 
-def ensure_viewfinder_running() -> None:
-    """Launch the viewfinder binary if it's not already running."""
+def start_viewfinder():
     global viewfinder_proc
     if viewfinder_proc is None or viewfinder_proc.poll() is not None:
         try:
@@ -101,16 +100,29 @@ def ensure_viewfinder_running() -> None:
             print(f"[ERROR] Failed to start viewfinder: {exc}")
 
 
-def take_screenshot() -> None:
-    """Capture a BMP screenshot using external command."""
-    ensure_viewfinder_running()
+def start_screenshot():
+    global screenshot_proc
     try:
-        subprocess.run([SCREENSHOT_CMD], check=True)
-        print(f"[INFO] Screenshot saved to {SCREENSHOT_FILE}")
-    except subprocess.CalledProcessError as e:
-        print(f"[ERROR] Screenshot command failed: {e}")
+        screenshot_proc = subprocess.Popen([SCREENSHOT_CMD])
+        print(f"[INFO] Screenshot started: {SCREENSHOT_FILE}")
     except FileNotFoundError:
-        print(f"[ERROR] screenshot command not found: {SCREENSHOT_CMD}")
+        print(f"[ERROR] Screenshot command not found: {SCREENSHOT_CMD}")
+    except Exception as exc:
+        print(f"[ERROR] Failed to start screenshot: {exc}")
+
+
+def stop_process(proc, name, timeout=3):
+    if proc and proc.poll() is None:
+        try:
+            proc.send_signal(signal.SIGTERM)
+            threading.Timer(
+                timeout, lambda: proc.kill() if proc.poll() is None else None
+            ).start()
+            print(
+                f"[INFO] Sent SIGTERM to {name}. Will force-kill in {timeout}s if needed."
+            )
+        except Exception as e:
+            print(f"[ERROR] Could not stop {name}: {e}")
 
 
 def update_environment_readings() -> None:
@@ -173,19 +185,30 @@ def play_chord(chord_str: str) -> None:
 
 
 def convert_bmp_to_jpg_online(bmp_path, jpg_path):
-    """Converts BMP to JPG using ConvertAPI."""
     convertapi_key = os.environ["CONVERT_API_KEY"]
     url = f"https://v2.convertapi.com/convert/bmp/to/jpg?Secret={convertapi_key}"
 
     with open(bmp_path, "rb") as f:
         files = {"File": f}
         r = requests.post(url, files=files)
-        r.raise_for_status()
-        jpg_url = r.json()["Files"][0]["Url"]
 
+    try:
+        r.raise_for_status()
+        resp_json = r.json()
+        if "Files" not in resp_json or not resp_json["Files"]:
+            raise ValueError(f"Unexpected ConvertAPI response: {resp_json}")
+        jpg_url = resp_json["Files"][0]["Url"]
+    except Exception as e:
+        print(f"[ERROR] ConvertAPI failed: {e}")
+        print(f"[DEBUG] Response content: {r.text}")
+        raise  # Re-raise for the thread to handle if needed
+
+    # Download the JPG
     jpg_data = requests.get(jpg_url)
     with open(jpg_path, "wb") as out_file:
         out_file.write(jpg_data.content)
+
+    print("[INFO] JPG saved to", jpg_path)
 
 
 def send_jpg_to_gemini_with_prompt(jpg_path, temperature, altitude, pressure, touches):
