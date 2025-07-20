@@ -86,7 +86,7 @@ NOTE_FREQ = {
     "A#5": 932,
     "B5": 988,
 }
-BUZZER_NOTE_MS = 500  # duration for each note in ms
+BUZZER_NOTE_MS = 666  # duration for each note in ms
 
 # ──────────────────────────────────────────────────────────────────────────────
 #  GLOBAL STATE
@@ -200,13 +200,13 @@ def play_chord(chord_str: str) -> None:
         freq = NOTE_FREQ.get(note.strip().upper())
         if freq:
             rainbowhat.buzzer.note(freq, BUZZER_NOTE_MS / 1000.0)
-            time.sleep(0.05)  # tiny gap
+            time.sleep(0.6)  # tiny gap
     # rainbowhat.buzzer.note(0, 0)
 
 
 def convert_bmp_to_jpg_online(bmp_path: str, jpg_path: str, secret: str) -> str:
     # convert_url = f"https://v2.convertapi.com/convert/bmp/to/jpg?Secret={secret}"
-    convertapi.api_credentials = convert_key
+    convertapi.api_credentials = os.environ["CONVERT_API_KEY"]
     convertapi.convert("jpg", {"File": "screenshot.bmp"}, from_format="bmp").save_files(
         "screenshot.jpg"
     )
@@ -229,16 +229,12 @@ def send_jpg_to_gemini_with_prompt(jpg_path, temperature, altitude, pressure, to
     touch_str = "\n".join([f"- Time: {t[0]} ms, Pressure: {t[1]} Pa" for t in touches])
     prompt_text = f"""
         Given temperature, altitude, pressure, list of touches (chosen number of touches, timing & pressure), and an embedded image of the user, answer the following in the exact format 'MBTI, note1 note2 note3 note4' where MBTI is exactly 4 characters of the predicted personality and note1 note2 note3 note4 makes up a chord that user will likely enjoy from the information we learn about how user interacted with the environment. This means, the output will be of a format "one string of 4 characters, 4 notes". Do NOT include any other extra information that might break the format. Extra information is of below and user's pose, style, expression can be learnt from the embedded image.
-
         Temperature: {temperature}°C
         Altitude: {altitude} m
         Pressure: {pressure} hPa
         Number of touches: {len(touches)}
-        Touches:
-        {touch_str}
-
-        Some suggested questions to determine personality:
-        1. When in a stimulating or chaotic environment (e.g., high altitude and cold), do you appear energized and expressive in your pose or gestures?
+        Touches: {touch_str}
+Some suggested questions to determine personality: 1. When in a stimulating or chaotic environment (e.g., high altitude and cold), do you appear energized and expressive in your pose or gestures?
 E – outward focus and energy
 2. Does your button press pattern show immediate engagement with minimal hesitation?
 E – impulsivity and outward initiative
@@ -315,6 +311,7 @@ def send_to_gemini() -> None:
             touches=touch_log,
         )
         stop_led_loading()
+        time.sleep(0.6)  # tiny gap
 
         print(f"result = {result}")
         try:
@@ -345,6 +342,9 @@ def send_to_gemini() -> None:
 
 @rainbowhat.touch.A.press()
 def on_a_press(_):
+    rainbowhat.display.clear()
+    stop_led_loading()
+    rainbowhat.display.print_str("6666")
     rainbowhat.lights.rgb(1, 0, 0)
     start_viewfinder()
     start_screenshot()
