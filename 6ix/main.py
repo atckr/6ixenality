@@ -49,6 +49,18 @@ GEMINI_API_KEY_ENV = gemini_key
 
 # Mapping from note names (C4, D#4, etc.) to frequencies (Hz)
 NOTE_FREQ = {
+    "A": 220.0,
+    "A#": 233.08,
+    "B": 246.94,
+    "C": 261.63,
+    "C#": 277.18,
+    "D": 293.66,
+    "D#": 311.13,
+    "E": 329.63,
+    "F": 349.23,
+    "F#": 369.99,
+    "G": 392.0,
+    "G#": 415.3,
     "C4": 261,
     "C#4": 277,
     "D4": 294,
@@ -224,6 +236,40 @@ def send_jpg_to_gemini_with_prompt(jpg_path, temperature, altitude, pressure, to
         Number of touches: {len(touches)}
         Touches:
         {touch_str}
+
+        Some suggested questions to determine personality:
+        1. When in a stimulating or chaotic environment (e.g., high altitude and cold), do you appear energized and expressive in your pose or gestures?
+E – outward focus and energy
+2. Does your button press pattern show immediate engagement with minimal hesitation?
+E – impulsivity and outward initiative
+3. In high-pressure settings, do you exhibit stillness, inward posture, or lack of engagement?
+I – reserved nature under external demand
+4. Is your response to the button task delayed but consistent, suggesting internal reflection before action?
+I – inward processing
+5. Is your clothing well-suited to environmental conditions (e.g., warm gear in cold settings), suggesting attention to concrete realities?
+S – practicality and awareness
+6. Do your touch timings show a consistent pattern, adapted to small sensory cues (e.g., temperature shifts)?
+S – real-time sensory feedback
+7. Does your outfit prioritize visual impact or style over practicality (e.g., light clothing in cold), suggesting abstract or conceptual focus?
+N – symbolic thinking or future orientation
+8. Do your button presses form a symbolic or patterned rhythm, not directly linked to environmental demands?
+N – internal pattern generation or imaginative play
+9. In high-pressure conditions, does your posture remain efficient or controlled, minimizing expressive movement?
+T – focus on function and outcome
+10. Is your button interaction steady and deliberate regardless of pressure, prioritizing task success?
+T – logic-based consistency
+11. Do you maintain expressive or open body language despite environmental discomfort?
+F – value alignment or emotional expression
+12. Does your button touch pattern change under discomfort (e.g., delayed or erratic presses when cold), suggesting emotional influence?
+F – emotionally driven reactions
+13. Is your outfit neat and coordinated, possibly indicating pre-planned self-presentation?
+J – structure, preparedness
+14. Do you exhibit an evenly spaced button press pattern with clear start and stop?
+J – planned and organized execution
+15. Does your clothing or hairstyle seem improvised or weather-inappropriate but expressive?
+P – spontaneity or prioritizing comfort/flexibility
+16. Is your touch behavior erratic or exploratory, with no clear pattern in timing or count?
+P – openness to momentary choice
         """
 
     payload = {
